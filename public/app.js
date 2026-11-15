@@ -111,6 +111,14 @@ $('request-form').addEventListener('submit', async (e) => {
   } catch (err) { alert(err.message); }
 });
 
+function whatsappCard() {
+  return `<div class="card">
+    <h3>¿Tu acta no está en el sistema?</h3>
+    <p>Se puede subir al sistema. Contacta al administrador por WhatsApp: <strong>777 470 0718</strong></p>
+    <p><a class="btn-gold" href="https://wa.me/527774700718?text=Hola%2C%20quiero%20subir%20un%20acta%20al%20sistema%20de%20Despacho%20jur%C3%ADdico%2033%20grados." target="_blank" rel="noopener">Contactar por WhatsApp</a></p>
+  </div>`;
+}
+
 // ---------- Mis trámites ----------
 $('lookup-form').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -118,7 +126,7 @@ $('lookup-form').addEventListener('submit', async (e) => {
     const r = await api(`/api/requests/${encodeURIComponent($('l-folio').value.trim().toUpperCase())}?code=${encodeURIComponent($('l-code').value.trim().toUpperCase())}`);
     $('lookup-result').innerHTML = requestCard(r, null);
   } catch (err) {
-    $('lookup-result').innerHTML = `<div class="card"><p>${err.message}</p></div>`;
+    $('lookup-result').innerHTML = `<div class="card"><p>${err.message}</p></div>` + whatsappCard();
   }
 });
 
