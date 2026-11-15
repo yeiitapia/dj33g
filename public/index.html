@@ -109,6 +109,16 @@
       <form id="prices-form" class="card form row"></form>
       <h3>Todos los trámites</h3>
       <div id="admin-requests"></div>
+      <h3>Borrar historial</h3>
+      <div class="card form">
+        <label>Borrar un trámite por folio
+          <input id="d-folio" maxlength="30" placeholder="DJ33G-2026-0001">
+        </label>
+        <button id="delete-one-btn" class="btn-navy" type="button">Borrar trámite</button>
+        <hr>
+        <p class="muted"><strong>Borrar todo el historial</strong> elimina todos los trámites de forma permanente y no se puede deshacer.</p>
+        <button id="delete-all-btn" class="btn-navy" type="button">Borrar todo el historial</button>
+      </div>
     </div>
     <p id="admin-msg" class="muted"></p>
   </section>
