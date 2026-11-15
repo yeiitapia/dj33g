@@ -1,5 +1,7 @@
 // Despacho jurídico 33 grados — lógica del frontend.
 const $ = (id) => document.getElementById(id);
+// Enlace de pago de Mercado Pago ($110 MXN, Despacho jurídico 33 grados).
+const MP_PAY_LINK = 'https://mpago.la/1U4rGp8';
 const money = (n) => '$' + Number(n).toLocaleString('es-MX') + ' MXN';
 const ADMIN_KEY = 'dj33g_admin_token';
 let catalog = [];
@@ -103,9 +105,13 @@ $('request-form').addEventListener('submit', async (e) => {
           window.open(pay.init_point, '_blank');
           $('pay-msg').textContent = 'Se abrió Mercado Pago en otra pestaña. Después del pago, consulta tu trámite con tu folio y código.';
         } else {
-          $('pay-msg').textContent = pay.message || 'Mercado Pago no está configurado todavía.';
+          window.open(MP_PAY_LINK, '_blank');
+          $('pay-msg').textContent = 'Se abrió el pago de Mercado Pago en otra pestaña ($110). Después del pago, avísale al administrador con tu folio para que confirme tu trámite.';
         }
-      } catch (err) { $('pay-msg').textContent = err.message; }
+      } catch (err) {
+        window.open(MP_PAY_LINK, '_blank');
+        $('pay-msg').textContent = 'Se abrió el pago de Mercado Pago en otra pestaña ($110). Después del pago, avísale al administrador con tu folio para que confirme tu trámite.';
+      }
     });
     box.scrollIntoView({ behavior: 'smooth' });
   } catch (err) { alert(err.message); }
