@@ -14,6 +14,25 @@ const PORT = process.env.PORT || 3000;
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'data', 'dj33g.db');
 const MP_PUBLIC_KEY = process.env.MP_PUBLIC_KEY || '';
 const MP_ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN || '';
+// Alertas de WhatsApp al administrador cuando se solicita un acta (CallMeBot).
+// Se activa solo si CALLMEBOT_APIKEY está configurado en el entorno; sin la
+// clave no se envía nada y la solicitud se crea igual. Sin subir todavía.
+const ADMIN_WHATSAPP = (process.env.ADMIN_WHATSAPP || '527774700718').replace(/\D/g, '');
+const CALLMEBOT_APIKEY = process.env.CALLMEBOT_APIKEY || '';
+
+async function notifyAdminWhatsApp(text) {
+  if (!CALLMEBOT_APIKEY) return false;
+  try {
+    const url = 'https://api.callmebot.com/whatsapp.php?phone=' + ADMIN_WHATSAPP +
+      '&text=' + encodeURIComponent(text) + '&apikey=' + encodeURIComponent(CALLMEBOT_APIKEY);
+    const resp = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    if (!resp.ok) console.error('CallMeBot respondió', resp.status);
+    return resp.ok;
+  } catch (e) {
+    console.error('No se pudo enviar la alerta de WhatsApp:', e.message);
+    return false;
+  }
+}
 
 fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 const db = new DatabaseSync(DB_PATH);
@@ -52,6 +71,11 @@ const getSetting = (key, fallback) => {
   const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
   return row ? row.value : fallback;
 };
+// Migración: columna acta_status (pendiente | en_sistema | no_encontrada) para
+// que el administrador indique si el acta está en el sistema antes del pago.
+if (!db.prepare('PRAGMA table_info(requests)').all().some((c) => c.name === 'acta_status')) {
+  db.exec("ALTER TABLE requests ADD COLUMN acta_status TEXT NOT NULL DEFAULT 'pendiente'");
+}
 const setSetting = (key, value) =>
   db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(key, String(value));
 
@@ -90,9 +114,16 @@ function makeCode() {
 }
 function makeFolio() {
   // Contador persistente: el folio nunca se reutiliza aunque se borre el historial.
+  // Si el contador no existe pero la base ya tiene trámites (de antes del
+  // contador), se siembra desde el folio más alto existente para no repetirlo.
   const year = new Date().getFullYear();
   const key = 'folio_seq_' + year;
-  const n = Number(getSetting(key, 0)) + 1;
+  let cur = getSetting(key);
+  if (cur === undefined) {
+    const row = db.prepare('SELECT folio FROM requests WHERE folio LIKE ? ORDER BY folio DESC LIMIT 1').get(`DJ33G-${year}-%`);
+    cur = row ? Number(row.folio.split('-').pop()) || 0 : 0;
+  }
+  const n = Number(cur) + 1;
   setSetting(key, n);
   return `DJ33G-${year}-${String(n).padStart(4, '0')}`;
 }
@@ -123,6 +154,7 @@ function publicRequest(r) {
     curp: r.curp || '',
     status: r.status,
     payment_status: r.payment_status,
+    acta_status: r.acta_status || 'pendiente',
     price: getPrice(r.type),
     created_at: r.created_at,
   };
@@ -171,6 +203,17 @@ app.post('/api/requests', (req, res) => {
     b.curp ? String(b.curp).trim().toUpperCase() : null
   );
   const row = db.prepare('SELECT * FROM requests WHERE id = ?').get(info.lastInsertRowid);
+  // Alerta al administrador por WhatsApp (no bloquea la respuesta; si no hay
+  // clave de CallMeBot configurada, simplemente no se envía).
+  notifyAdminWhatsApp(
+    'Nueva solicitud de acta - Despacho jurídico 33 grados\n' +
+    'Acta: ' + ACTAS[type].label + '\n' +
+    'Folio: ' + folio + '\n' +
+    'Solicitante: ' + String(b.applicant_name).trim() + '\n' +
+    'Contacto: ' + String(b.contact).trim() + '\n' +
+    'Registrado: ' + String(b.person_name).trim() + '\n' +
+    'Monto: $' + price + ' MXN'
+  );
   res.status(201).json({
     ...publicRequest(row),
     code,
@@ -180,9 +223,7 @@ app.post('/api/requests', (req, res) => {
       'registro (nombre, fecha y lugar) estén correctos; si algo no coincide, ' +
       'avísanos con tu folio para corregirlo antes de expedir el acta. ' +
       'Guarda tu código secreto: lo necesitarás para consultar tu trámite. ' +
-      (MP_ACCESS_TOKEN
-        ? 'Puedes pagar en línea con Mercado Pago o esperar la confirmación.'
-        : 'El pago queda pendiente: puedes pagar en línea cuando se active Mercado Pago o el administrador lo confirmará manualmente.'),
+      'Tu solicitud quedó en revisión: el administrador confirmará si tu acta está en el sistema. Consulta tu trámite con tu folio y código antes de pagar.',
   });
 });
 
@@ -197,10 +238,17 @@ app.get('/api/requests/:folio', (req, res) => {
 });
 
 // Pagar un trámite con Mercado Pago (crea la preferencia de pago).
+// Solo se puede pagar cuando el administrador confirmó que el acta está en sistema.
 app.post('/api/requests/:folio/pay', async (req, res) => {
   const row = db.prepare('SELECT * FROM requests WHERE folio = ?').get(req.params.folio.toUpperCase());
   if (!row) return res.status(404).json({ error: 'Trámite no encontrado' });
   if (row.payment_status === 'pagado') return res.json({ alreadyPaid: true, ...publicRequest(row) });
+  if ((row.acta_status || 'pendiente') === 'no_encontrada') {
+    return res.status(409).json({ error: 'El acta no se encontró en el sistema. Contacta al administrador por WhatsApp para subirla antes de pagar.' });
+  }
+  if ((row.acta_status || 'pendiente') !== 'en_sistema') {
+    return res.status(409).json({ error: 'Tu solicitud aún está en revisión. Espera a que el administrador confirme que tu acta está en el sistema antes de pagar.' });
+  }
   if (!MP_ACCESS_TOKEN) {
     return res.json({
       mpConfigured: false,
@@ -273,6 +321,18 @@ app.post('/api/admin/requests/:folio/confirm-payment', requireAdmin, (req, res) 
   const row = db.prepare('SELECT * FROM requests WHERE folio = ?').get(req.params.folio.toUpperCase());
   if (!row) return res.status(404).json({ error: 'Trámite no encontrado' });
   db.prepare("UPDATE requests SET payment_status = 'pagado' WHERE id = ?").run(row.id);
+  res.json(publicRequest(db.prepare('SELECT * FROM requests WHERE id = ?').get(row.id)));
+});
+
+// Indicar si el acta está en el sistema o no se encontró (antes del pago).
+app.post('/api/admin/requests/:folio/acta-status', requireAdmin, (req, res) => {
+  const status = String(req.body && req.body.acta_status || '');
+  if (!['pendiente', 'en_sistema', 'no_encontrada'].includes(status)) {
+    return res.status(400).json({ error: 'Estado de acta no válido' });
+  }
+  const row = db.prepare('SELECT * FROM requests WHERE folio = ?').get(req.params.folio.toUpperCase());
+  if (!row) return res.status(404).json({ error: 'Trámite no encontrado' });
+  db.prepare('UPDATE requests SET acta_status = ? WHERE id = ?').run(status, row.id);
   res.json(publicRequest(db.prepare('SELECT * FROM requests WHERE id = ?').get(row.id)));
 });
 
