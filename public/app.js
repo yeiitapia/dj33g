@@ -35,6 +35,17 @@ function requestCard(r, showCode) {
   </div>`;
 }
 
+function transferInfo(folio, price) {
+  return `<div class="card">
+    <h3>Pago por transferencia (SPEI)</h3>
+    <p><strong>Beneficiario:</strong> Raúl Yair Tapia Hernández</p>
+    <p><strong>Cuenta CLABE:</strong> 722969010240856928</p>
+    <p><strong>Monto:</strong> ${money(price)} MXN</p>
+    <p><strong>Concepto / Referencia:</strong> ${folio}</p>
+    <p class="muted">Transfiere el monto exacto y pon tu folio como concepto. Después del pago, el administrador confirma tu trámite.</p>
+  </div>`;
+}
+
 // ---------- Catálogo ----------
 async function loadCatalog() {
   const data = await api('/api/catalog');
@@ -82,6 +93,7 @@ $('request-form').addEventListener('submit', async (e) => {
     const box = $('request-result');
     box.classList.remove('hidden');
     box.innerHTML = `<h3>Trámite recibido</h3><p>${r.message}</p>` + requestCard(r, r.code) +
+      transferInfo(r.folio, r.price) +
       `<p><button class="btn-navy" id="pay-btn">Pagar con Mercado Pago</button></p><p id="pay-msg" class="muted"></p>`;
     $('request-form').reset();
     $('pay-btn').addEventListener('click', async () => {
