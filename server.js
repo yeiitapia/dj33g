@@ -82,9 +82,12 @@ function makeCode() {
   return code;
 }
 function makeFolio() {
+  // Contador persistente: el folio nunca se reutiliza aunque se borre el historial.
   const year = new Date().getFullYear();
-  const row = db.prepare('SELECT COALESCE(MAX(id), 0) AS n FROM requests').get();
-  return `DJ33G-${year}-${String(row.n + 1).padStart(4, '0')}`;
+  const key = 'folio_seq_' + year;
+  const n = Number(getSetting(key, 0)) + 1;
+  setSetting(key, n);
+  return `DJ33G-${year}-${String(n).padStart(4, '0')}`;
 }
 function hashPin(pin) {
   const salt = crypto.randomBytes(16).toString('hex');
@@ -276,6 +279,20 @@ app.post('/api/admin/requests/:folio/status', requireAdmin, (req, res) => {
   if (!row) return res.status(404).json({ error: 'Trámite no encontrado' });
   db.prepare('UPDATE requests SET status = ? WHERE id = ?').run(status, row.id);
   res.json(publicRequest(db.prepare('SELECT * FROM requests WHERE id = ?').get(row.id)));
+});
+
+// Borrar un trámite individual por folio.
+app.delete('/api/admin/requests/:folio', requireAdmin, (req, res) => {
+  const row = db.prepare('SELECT * FROM requests WHERE folio = ?').get(req.params.folio.toUpperCase());
+  if (!row) return res.status(404).json({ error: 'Trámite no encontrado' });
+  db.prepare('DELETE FROM requests WHERE id = ?').run(row.id);
+  res.json({ ok: true, deleted: row.folio });
+});
+
+// Borrar todo el historial de trámites (definitivo, no se puede deshacer).
+app.delete('/api/admin/requests', requireAdmin, (req, res) => {
+  const info = db.prepare('DELETE FROM requests').run();
+  res.json({ ok: true, deleted: info.changes });
 });
 
 // Editar precios del catálogo.
