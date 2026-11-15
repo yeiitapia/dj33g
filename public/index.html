@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Despacho jurídico 33 grados — Expedición de actas</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap topbar-inner">
+    <img src="logo.png" alt="Despacho Jurídico 33 Grados" class="logo">
+    <div>
+      <strong class="brand">Despacho jurídico 33 grados</strong>
+      <span class="brand-sub">Expedición de actas</span>
+    </div>
+    <nav>
+      <a href="#actas">Actas</a>
+      <a href="#mis-tramites">Mis trámites</a>
+      <a href="#admin">Administrador</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="hero">
+    <img src="logo.png" alt="Despacho Jurídico 33 Grados" class="hero-logo">
+    <h1>¿Necesitas un acta? Obténgala hoy mismo</h1>
+    <p>Expedimos actas de nacimiento, matrimonio y defunción. Llena tu solicitud en línea, paga dentro de la aplicación y consulta tu trámite con tu folio.</p>
+    <a class="btn-gold" href="#actas">Solicitar un acta</a>
+  </section>
+
+  <section id="actas">
+    <h2>Actas disponibles</h2>
+    <p class="muted">Elige el tipo de acta. Los precios los fija el administrador.</p>
+    <div id="catalog" class="cards"></div>
+  </section>
+
+  <section id="solicitud" class="hidden">
+    <h2 id="form-title">Solicitar acta</h2>
+    <form id="request-form" class="card form">
+      <input type="hidden" id="f-type">
+      <label>Nombre del solicitante
+        <input id="f-applicant" required maxlength="120" placeholder="Tu nombre completo">
+      </label>
+      <label>Contacto (teléfono o correo)
+        <input id="f-contact" required maxlength="120" placeholder="Ej. 735 123 4567 o correo@ejemplo.com">
+      </label>
+      <label>Nombre completo del registrado
+        <input id="f-person" required maxlength="150" placeholder="Nombre de la persona del acta">
+      </label>
+      <label>Fecha del acto
+        <input id="f-date" type="date" required>
+      </label>
+      <div class="row">
+        <label>Municipio
+          <input id="f-municipality" required maxlength="100" placeholder="Municipio">
+        </label>
+        <label>Estado
+          <input id="f-state" required maxlength="100" placeholder="Estado">
+        </label>
+      </div>
+      <label>CURP (opcional)
+        <input id="f-curp" maxlength="18" placeholder="CURP, si la tienes">
+      </label>
+      <p id="form-price" class="price"></p>
+      <button type="submit" class="btn-gold">Enviar solicitud</button>
+    </form>
+    <div id="request-result" class="card hidden"></div>
+  </section>
+
+  <section id="mis-tramites">
+    <h2>Mis trámites</h2>
+    <p class="muted">Consulta tu trámite con el folio y el código secreto que recibiste al solicitarlo.</p>
+    <form id="lookup-form" class="card form row">
+      <label>Folio
+        <input id="l-folio" required maxlength="30" placeholder="DJ33G-2026-0001">
+      </label>
+      <label>Código secreto
+        <input id="l-code" required maxlength="20" placeholder="Código de 8 caracteres">
+      </label>
+      <button type="submit" class="btn-navy">Consultar</button>
+    </form>
+    <div id="lookup-result"></div>
+  </section>
+
+  <section id="admin">
+    <h2>Administrador</h2>
+    <div id="admin-setup" class="card hidden">
+      <p><strong>Crea tu PIN de administrador.</strong> La primera persona que lo crea queda como administradora. Guárdalo bien: con él verás todos los trámites, confirmarás pagos y cambiarás precios.</p>
+      <form id="setup-form" class="form">
+        <label>PIN nuevo (4 a 20 caracteres)
+          <input id="s-pin" type="password" required minlength="4" maxlength="20">
+        </label>
+        <button type="submit" class="btn-gold">Crear PIN</button>
+      </form>
+    </div>
+    <div id="admin-login" class="card hidden">
+      <form id="login-form" class="form">
+        <label>PIN de administrador
+          <input id="a-pin" type="password" required>
+        </label>
+        <button type="submit" class="btn-navy">Entrar</button>
+      </form>
+    </div>
+    <div id="admin-panel" class="hidden">
+      <p class="muted">Sesión de administrador activa en este dispositivo (30 días). <button id="logout-btn" class="link">Cerrar sesión</button></p>
+      <h3>Precios del catálogo</h3>
+      <form id="prices-form" class="card form row"></form>
+      <h3>Todos los trámites</h3>
+      <div id="admin-requests"></div>
+    </div>
+    <p id="admin-msg" class="muted"></p>
+  </section>
+</main>
+
+<footer class="wrap muted center">Despacho jurídico 33 grados · Expedición de actas</footer>
+<script src="app.js"></script>
+</body>
+</html>
