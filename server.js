@@ -14,6 +14,18 @@ const PORT = process.env.PORT || 3000;
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'data', 'dj33g.db');
 const MP_PUBLIC_KEY = process.env.MP_PUBLIC_KEY || '';
 const MP_ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN || '';
+// PIN de administrador fijo en Render (gratis): sobrevive a las actualizaciones
+// aunque el disco gratis se borre. ADMIN_PIN_HASH (formato salt:hash) tiene
+// prioridad; si solo está ADMIN_PIN (en texto plano), se convierte a hash en
+// memoria al arrancar. Sin ninguno de los dos, el PIN se guarda en la base
+// de datos como antes y se puede perder al actualizar.
+const ADMIN_PIN = process.env.ADMIN_PIN || '';
+const ADMIN_PIN_HASH_ENV = process.env.ADMIN_PIN_HASH || '';
+let adminPinHashMemory = null;
+if (ADMIN_PIN && !ADMIN_PIN_HASH_ENV) adminPinHashMemory = hashPin(ADMIN_PIN);
+function getAdminPinHash() {
+  return getSetting('admin_pin_hash') || ADMIN_PIN_HASH_ENV || adminPinHashMemory;
+}
 // Alertas de WhatsApp al administrador cuando se solicita un acta (CallMeBot).
 // Se activa solo si CALLMEBOT_APIKEY está configurado en el entorno; sin la
 // clave no se envía nada y la solicitud se crea igual. Sin subir todavía.
@@ -280,12 +292,12 @@ app.post('/api/requests/:folio/pay', async (req, res) => {
 // ---------- Administrador ----------
 // ¿Ya existe un PIN de administrador?
 app.get('/api/admin/status', (req, res) => {
-  res.json({ hasPin: Boolean(getSetting('admin_pin_hash')), mpConfigured: Boolean(MP_ACCESS_TOKEN) });
+  res.json({ hasPin: Boolean(getAdminPinHash()), mpConfigured: Boolean(MP_ACCESS_TOKEN) });
 });
 
 // Crear el PIN la primera vez (solo si aún no existe).
 app.post('/api/admin/setup', (req, res) => {
-  if (getSetting('admin_pin_hash')) return res.status(409).json({ error: 'El PIN de administrador ya existe' });
+  if (getAdminPinHash()) return res.status(409).json({ error: 'El PIN de administrador ya existe' });
   const pin = String(req.body && req.body.pin || '');
   if (pin.length < 4 || pin.length > 20) return res.status(400).json({ error: 'El PIN debe tener entre 4 y 20 caracteres' });
   setSetting('admin_pin_hash', hashPin(pin));
@@ -294,7 +306,7 @@ app.post('/api/admin/setup', (req, res) => {
 
 // Entrar como administrador (sesión de 30 días en este dispositivo).
 app.post('/api/admin/login', (req, res) => {
-  const stored = getSetting('admin_pin_hash');
+  const stored = getAdminPinHash();
   if (!stored) return res.status(409).json({ error: 'Aún no hay PIN de administrador. Créalo primero.' });
   const pin = String(req.body && req.body.pin || '');
   if (!verifyPin(pin, stored)) return res.status(401).json({ error: 'PIN incorrecto' });
