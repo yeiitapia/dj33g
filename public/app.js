@@ -23,7 +23,53 @@ function statusBadge(r) {
     : badge('Pendiente de pago', 'pendiente');
   const st = { recibido: 'Recibido', en_proceso: 'En proceso', entregado: 'Entregado' }[r.status] || r.status;
   const cls = { recibido: 'recibido', en_proceso: 'en_proceso', entregado: 'entregado' }[r.status] || 'recibido';
-  return pay + ' ' + badge(st, cls);
+  return pay + ' ' + badge(st, cls) + ' ' + actaBadge(r);
+}
+// Estado de verificación del acta (el administrador lo marca antes del pago).
+function actaBadge(r) {
+  const s = r.acta_status || 'pendiente';
+  if (s === 'en_sistema') return badge('Acta en sistema', 'pagado');
+  if (s === 'no_encontrada') return badge('Acta no encontrada', 'no_encontrada');
+  return badge('En revisión: confirmando si el acta está en sistema', 'pendiente');
+}
+// Sección de pago: solo se muestra cuando el administrador confirmó que el
+// acta está en sistema; antes de eso el usuario debe esperar la revisión.
+function paySection(r) {
+  const s = r.acta_status || 'pendiente';
+  if (r.payment_status === 'pagado') return '<p>Tu pago ya quedó confirmado.</p>';
+  if (s === 'no_encontrada') {
+    return `<div class="card"><h3>Tu acta no se encontró en el sistema</h3>
+      <p>No pagues todavía. Primero hay que subir tu acta al sistema; contacta al administrador por WhatsApp y te ayudamos.</p></div>` + whatsappCard();
+  }
+  if (s !== 'en_sistema') {
+    return `<div class="card"><h3>Tu solicitud está en revisión</h3>
+      <p>El administrador está confirmando si tu acta está en el sistema. <strong>No pagues todavía.</strong> Consulta tu trámite con tu folio y tu código secreto para ver cuándo ya puedes pagar.</p></div>`;
+  }
+  return transferInfo(r.folio, r.price) +
+    `<p><button class="btn-navy" id="pay-btn">Pagar con Mercado Pago</button></p><p id="pay-msg" class="muted"></p>`;
+}
+function bindPayButton(r) {
+  const btn = $('pay-btn');
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    try {
+      const pay = await api(`/api/requests/${r.folio}/pay`, { method: 'POST' });
+      if (pay.init_point) {
+        window.open(pay.init_point, '_blank');
+        $('pay-msg').textContent = 'Se abrió Mercado Pago en otra pestaña. Después del pago, consulta tu trámite con tu folio y código.';
+      } else {
+        window.open(MP_PAY_LINK, '_blank');
+        $('pay-msg').textContent = 'Se abrió el pago de Mercado Pago en otra pestaña ($110). Después del pago, avísale al administrador con tu folio para que confirme tu trámite.';
+      }
+    } catch (err) {
+      if (err.message && /revisión|no se encontró/i.test(err.message)) {
+        $('pay-msg').textContent = err.message;
+      } else {
+        window.open(MP_PAY_LINK, '_blank');
+        $('pay-msg').textContent = 'Se abrió el pago de Mercado Pago en otra pestaña ($110). Después del pago, avísale al administrador con tu folio para que confirme tu trámite.';
+      }
+    }
+  });
 }
 function requestCard(r, showCode) {
   return `<div class="card">
@@ -94,25 +140,9 @@ $('request-form').addEventListener('submit', async (e) => {
     });
     const box = $('request-result');
     box.classList.remove('hidden');
-    box.innerHTML = `<h3>Trámite recibido</h3><p>${r.message}</p>` + requestCard(r, r.code) +
-      transferInfo(r.folio, r.price) +
-      `<p><button class="btn-navy" id="pay-btn">Pagar con Mercado Pago</button></p><p id="pay-msg" class="muted"></p>`;
+    box.innerHTML = `<h3>Trámite recibido</h3><p>${r.message}</p>` + requestCard(r, r.code) + paySection(r);
     $('request-form').reset();
-    $('pay-btn').addEventListener('click', async () => {
-      try {
-        const pay = await api(`/api/requests/${r.folio}/pay`, { method: 'POST' });
-        if (pay.init_point) {
-          window.open(pay.init_point, '_blank');
-          $('pay-msg').textContent = 'Se abrió Mercado Pago en otra pestaña. Después del pago, consulta tu trámite con tu folio y código.';
-        } else {
-          window.open(MP_PAY_LINK, '_blank');
-          $('pay-msg').textContent = 'Se abrió el pago de Mercado Pago en otra pestaña ($110). Después del pago, avísale al administrador con tu folio para que confirme tu trámite.';
-        }
-      } catch (err) {
-        window.open(MP_PAY_LINK, '_blank');
-        $('pay-msg').textContent = 'Se abrió el pago de Mercado Pago en otra pestaña ($110). Después del pago, avísale al administrador con tu folio para que confirme tu trámite.';
-      }
-    });
+    bindPayButton(r);
     box.scrollIntoView({ behavior: 'smooth' });
   } catch (err) { alert(err.message); }
 });
@@ -130,13 +160,32 @@ $('lookup-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   try {
     const r = await api(`/api/requests/${encodeURIComponent($('l-folio').value.trim().toUpperCase())}?code=${encodeURIComponent($('l-code').value.trim().toUpperCase())}`);
-    $('lookup-result').innerHTML = requestCard(r, null);
+    $('lookup-result').innerHTML = requestCard(r, null) + paySection(r);
+    bindPayButton(r);
   } catch (err) {
     $('lookup-result').innerHTML = `<div class="card"><p>${err.message}</p></div>` + whatsappCard();
   }
 });
 
 // ---------- Administrador ----------
+// ---------- WhatsApp del solicitante (panel del administrador) ----------
+// Normaliza el contacto que dejó el solicitante a número mexicano para wa.me:
+// 10 dígitos -> 52 + número; 12 dígitos con 52 -> tal cual; 521 + 10 -> 52 + 10.
+// Si el contacto no es un teléfono válido, devuelve '' (sin botón de WhatsApp).
+function waNumber(contact) {
+  const d = String(contact || '').replace(/\D/g, '');
+  if (d.length === 10) return '52' + d;
+  if (d.length === 12 && d.startsWith('52')) return d;
+  if (d.length === 13 && d.startsWith('521')) return '52' + d.slice(3);
+  return '';
+}
+function waLink(r) {
+  const n = waNumber(r.contact);
+  if (!n) return '';
+  const text = `Hola ${r.applicant_name}, soy del Despacho jurídico 33 grados. Te contacto por tu ${r.label} (folio ${r.folio}).`;
+  return `https://wa.me/${n}?text=${encodeURIComponent(text)}`;
+}
+
 async function refreshAdmin() {
   const st = await api('/api/admin/status');
   const token = localStorage.getItem(ADMIN_KEY);
@@ -163,9 +212,16 @@ async function refreshAdmin() {
             <td>${statusBadge(r)}</td>
             <td>
               ${r.payment_status !== 'pagado' ? `<button class="link" data-confirm="${r.folio}">Confirmar pago</button><br>` : ''}
-              ${r.status !== 'entregado' ? `<button class="link" data-status="${r.folio}">${r.status === 'recibido' ? 'Marcar en proceso' : 'Marcar entregado'}</button>` : ''}
+              ${r.status !== 'entregado' ? `<button class="link" data-status="${r.folio}">${r.status === 'recibido' ? 'Marcar en proceso' : 'Marcar entregado'}</button><br>` : ''}
+              <button class="link" data-acta="${r.folio}" data-acta-status="en_sistema">Acta en sistema</button><br>
+              <button class="link" data-acta="${r.folio}" data-acta-status="no_encontrada">No encontrada</button><br>
+              ${waLink(r) ? `<a class="link" href="${waLink(r)}" target="_blank" rel="noopener">Enviar por WhatsApp</a>` : ''}
             </td></tr>`).join('') + '</tbody></table>'
         : '<p class="muted">Aún no hay trámites.</p>';
+      document.querySelectorAll('[data-acta]').forEach((b) => b.addEventListener('click', async () => {
+        await api(`/api/admin/requests/${b.dataset.acta}/acta-status`, { method: 'POST', headers: adminHeaders(), body: JSON.stringify({ acta_status: b.dataset.actaStatus }) });
+        refreshAdmin();
+      }));
       document.querySelectorAll('[data-confirm]').forEach((b) => b.addEventListener('click', async () => {
         await api(`/api/admin/requests/${b.dataset.confirm}/confirm-payment`, { method: 'POST', headers: adminHeaders() });
         refreshAdmin();
