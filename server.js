@@ -45,6 +45,15 @@ async function notifyAdminWhatsApp(text) {
     return false;
   }
 }
+// Anti-spam de alertas de consulta: máximo una por folio cada 15 minutos
+// (en memoria; al reiniciar el servidor se olvida).
+const lastLookupNotified = new Map();
+function shouldNotifyLookup(folio) {
+  const last = lastLookupNotified.get(folio) || 0;
+  if (Date.now() - last < 15 * 60 * 1000) return false;
+  lastLookupNotified.set(folio, Date.now());
+  return true;
+}
 
 fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 const db = new DatabaseSync(DB_PATH);
@@ -245,6 +254,19 @@ app.get('/api/requests/:folio', (req, res) => {
   const row = db.prepare('SELECT * FROM requests WHERE folio = ?').get(req.params.folio.toUpperCase());
   if (!row || row.code !== code) {
     return res.status(404).json({ error: 'No se encontró el trámite con ese folio y código' });
+  }
+  // Aviso al administrador por WhatsApp: alguien consultó el acta, para que
+  // pueda enviársela por WhatsApp al solicitante (máximo una cada 15 min
+  // por folio, para no saturar). No bloquea la respuesta.
+  if (shouldNotifyLookup(row.folio)) {
+    notifyAdminWhatsApp(
+      'Consulta de acta - Despacho jurídico 33 grados\n' +
+      'Acta: ' + (ACTAS[row.type] ? ACTAS[row.type].label : row.type) + '\n' +
+      'Folio: ' + row.folio + '\n' +
+      'Solicitante: ' + row.applicant_name + '\n' +
+      'WhatsApp del solicitante: ' + row.contact + '\n' +
+      'Estado: ' + row.status + ' / Pago: ' + row.payment_status + ' / Acta: ' + (row.acta_status || 'pendiente')
+    );
   }
   res.json(publicRequest(row));
 });
