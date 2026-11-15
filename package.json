@@ -1,0 +1,1 @@
+{"dependencies":{"dotenv":"^16.4.5","express":"^4.21.2"},"description":"Despacho jurídico 33 grados (D.J. 33G) — Expedición de actas de nacimiento, matrimonio y defunción.","engines":{"node":">=22.5"},"license":"UNLICENSED","main":"server.js","name":"despacho-juridico-33-grados","private":true,"scripts":{"start":"node server.js"},"version":"1.0.0"}
