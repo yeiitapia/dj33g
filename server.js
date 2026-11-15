@@ -55,10 +55,17 @@ const getSetting = (key, fallback) => {
 const setSetting = (key, value) =>
   db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(key, String(value));
 
-// Precios por defecto (editables por el administrador). No hay datos sembrados.
-if (getSetting('price_nacimiento') === undefined) setSetting('price_nacimiento', 250);
-if (getSetting('price_matrimonio') === undefined) setSetting('price_matrimonio', 350);
-if (getSetting('price_defuncion') === undefined) setSetting('price_defuncion', 250);
+// Precios fijos: $110 MXN por acta (editables por el administrador).
+if (getSetting('price_nacimiento') === undefined) setSetting('price_nacimiento', 110);
+if (getSetting('price_matrimonio') === undefined) setSetting('price_matrimonio', 110);
+if (getSetting('price_defuncion') === undefined) setSetting('price_defuncion', 110);
+// Migración única: precios que ya existían guardados (250/350/250) pasan a $110.
+if (getSetting('prices_migrated_110') === undefined) {
+  setSetting('price_nacimiento', 110);
+  setSetting('price_matrimonio', 110);
+  setSetting('price_defuncion', 110);
+  setSetting('prices_migrated_110', 1);
+}
 
 const ACTAS = {
   nacimiento: { label: 'Acta de Nacimiento', description: 'Copia certificada del acta de nacimiento.' },
