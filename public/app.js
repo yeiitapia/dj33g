@@ -191,4 +191,25 @@ $('prices-form').addEventListener('submit', async (e) => {
   } catch (err) { alert(err.message); }
 });
 
+// ---------- Borrar historial (administrador) ----------
+$('delete-one-btn').addEventListener('click', async () => {
+  const folio = $('d-folio').value.trim().toUpperCase();
+  if (!folio) { alert('Escribe el folio del trámite que quieres borrar.'); return; }
+  if (!confirm(`¿Borrar el trámite con folio ${folio}? Esta acción es permanente y no se puede deshacer.`)) return;
+  try {
+    await api(`/api/admin/requests/${encodeURIComponent(folio)}`, { method: 'DELETE', headers: adminHeaders() });
+    $('admin-msg').textContent = `Trámite ${folio} borrado.`;
+    $('d-folio').value = '';
+    refreshAdmin();
+  } catch (err) { alert(err.message); }
+});
+$('delete-all-btn').addEventListener('click', async () => {
+  if (!confirm('¿Borrar TODO el historial de trámites? Esta acción es permanente y no se puede deshacer.')) return;
+  try {
+    const r = await api('/api/admin/requests', { method: 'DELETE', headers: adminHeaders() });
+    $('admin-msg').textContent = `Historial borrado: ${r.deleted} trámite(s) eliminado(s).`;
+    refreshAdmin();
+  } catch (err) { alert(err.message); }
+});
+
 loadCatalog().then(refreshAdmin).catch((e) => { $('catalog').innerHTML = '<p>No se pudo cargar el catálogo.</p>'; });
