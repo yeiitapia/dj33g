@@ -233,6 +233,9 @@ app.post('/api/requests', (req, res) => {
     'Solicitante: ' + String(b.applicant_name).trim() + '\n' +
     'Contacto: ' + String(b.contact).trim() + '\n' +
     'Registrado: ' + String(b.person_name).trim() + '\n' +
+    'Fecha: ' + String(b.event_date).trim() + '\n' +
+    'Lugar: ' + String(b.place_municipality).trim() + ', ' + String(b.place_state).trim() + '\n' +
+    (b.curp ? 'CURP: ' + String(b.curp).trim().toUpperCase() + '\n' : '') +
     'Monto: $' + price + ' MXN'
   );
   res.status(201).json({
@@ -265,6 +268,10 @@ app.get('/api/requests/:folio', (req, res) => {
       'Folio: ' + row.folio + '\n' +
       'Solicitante: ' + row.applicant_name + '\n' +
       'WhatsApp del solicitante: ' + row.contact + '\n' +
+      'Registrado: ' + row.person_name + '\n' +
+      'Fecha: ' + row.event_date + '\n' +
+      'Lugar: ' + row.place_municipality + ', ' + row.place_state + '\n' +
+      (row.curp ? 'CURP: ' + row.curp + '\n' : '') +
       'Estado: ' + row.status + ' / Pago: ' + row.payment_status + ' / Acta: ' + (row.acta_status || 'pendiente')
     );
   }
