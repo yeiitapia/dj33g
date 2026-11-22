@@ -1,7 +1,5 @@
 // Despacho jurídico 33 grados — lógica del frontend.
 const $ = (id) => document.getElementById(id);
-// Enlace de pago de Mercado Pago ($110 MXN, Despacho jurídico 33 grados).
-const MP_PAY_LINK = 'https://mpago.la/1U4rGp8';
 const money = (n) => '$' + Number(n).toLocaleString('es-MX') + ' MXN';
 const ADMIN_KEY = 'dj33g_admin_token';
 let catalog = [];
@@ -45,31 +43,7 @@ function paySection(r) {
     return `<div class="card"><h3>Tu solicitud está en revisión</h3>
       <p>El administrador está confirmando si tu acta está en el sistema. <strong>No pagues todavía.</strong> Consulta tu trámite con tu folio y tu código secreto para ver cuándo ya puedes pagar.</p></div>`;
   }
-  return transferInfo(r.folio, r.price) +
-    `<p><button class="btn-navy" id="pay-btn">Pagar con Mercado Pago</button></p><p id="pay-msg" class="muted"></p>`;
-}
-function bindPayButton(r) {
-  const btn = $('pay-btn');
-  if (!btn) return;
-  btn.addEventListener('click', async () => {
-    try {
-      const pay = await api(`/api/requests/${r.folio}/pay`, { method: 'POST' });
-      if (pay.init_point) {
-        window.open(pay.init_point, '_blank');
-        $('pay-msg').textContent = 'Se abrió Mercado Pago en otra pestaña. Después del pago, consulta tu trámite con tu folio y código.';
-      } else {
-        window.open(MP_PAY_LINK, '_blank');
-        $('pay-msg').textContent = 'Se abrió el pago de Mercado Pago en otra pestaña ($110). Después del pago, avísale al administrador con tu folio para que confirme tu trámite.';
-      }
-    } catch (err) {
-      if (err.message && /revisión|no se encontró/i.test(err.message)) {
-        $('pay-msg').textContent = err.message;
-      } else {
-        window.open(MP_PAY_LINK, '_blank');
-        $('pay-msg').textContent = 'Se abrió el pago de Mercado Pago en otra pestaña ($110). Después del pago, avísale al administrador con tu folio para que confirme tu trámite.';
-      }
-    }
-  });
+  return transferInfo(r.folio, r.price);
 }
 function requestCard(r, showCode) {
   return `<div class="card">
@@ -142,7 +116,6 @@ $('request-form').addEventListener('submit', async (e) => {
     box.classList.remove('hidden');
     box.innerHTML = `<h3>Trámite recibido</h3><p>${r.message}</p>` + requestCard(r, r.code) + paySection(r);
     $('request-form').reset();
-    bindPayButton(r);
     box.scrollIntoView({ behavior: 'smooth' });
   } catch (err) { alert(err.message); }
 });
@@ -161,7 +134,6 @@ $('lookup-form').addEventListener('submit', async (e) => {
   try {
     const r = await api(`/api/requests/${encodeURIComponent($('l-folio').value.trim().toUpperCase())}?code=${encodeURIComponent($('l-code').value.trim().toUpperCase())}`);
     $('lookup-result').innerHTML = requestCard(r, null) + paySection(r);
-    bindPayButton(r);
   } catch (err) {
     $('lookup-result').innerHTML = `<div class="card"><p>${err.message}</p></div>` + whatsappCard();
   }
