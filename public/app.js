@@ -158,6 +158,12 @@ function waLink(r) {
   return `https://wa.me/${n}?text=${encodeURIComponent(text)}`;
 }
 
+// Contador de visitas: cada carga de la página suma una visita.
+// El número solo se muestra en el panel del administrador.
+async function countVisit() {
+  try { await api('/api/visit', { method: 'POST' }); } catch (e) {}
+}
+
 async function refreshAdmin() {
   const st = await api('/api/admin/status');
   const token = localStorage.getItem(ADMIN_KEY);
@@ -172,6 +178,8 @@ async function refreshAdmin() {
     try {
       const data = await api('/api/admin/requests', { headers: adminHeaders() });
       $('admin-panel').classList.remove('hidden');
+      const v = await api('/api/admin/visits', { headers: adminHeaders() });
+      $('admin-visits').textContent = 'Visitas a la página: ' + Number(v.visits).toLocaleString('es-MX');
       $('prices-form').innerHTML = catalog.map((a) => `
         <label>${a.label}
           <input type="number" min="0" step="1" data-price-type="${a.type}" value="${a.price}">
@@ -267,3 +275,4 @@ $('delete-all-btn').addEventListener('click', async () => {
 });
 
 loadCatalog().then(refreshAdmin).catch((e) => { $('catalog').innerHTML = '<p>No se pudo cargar el catálogo.</p>'; });
+countVisit();
