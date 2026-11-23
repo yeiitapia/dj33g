@@ -201,6 +201,16 @@ app.get('/api/catalog', (req, res) => {
   res.json({ actas: getCatalog(), mpConfigured: Boolean(MP_ACCESS_TOKEN) });
 });
 
+// Contador de visitas (el número solo lo ve el administrador).
+// Cada carga de la página suma una visita. El contador vive en la base de
+// datos; en el hosting gratis se reinicia cuando el servidor se actualiza
+// o se reinicia, igual que el historial de trámites.
+app.post('/api/visit', (req, res) => {
+  const n = Number(getSetting('visits', 0)) + 1;
+  setSetting('visits', n);
+  res.json({ ok: true });
+});
+
 // Crear una solicitud de acta.
 app.post('/api/requests', (req, res) => {
   const b = req.body || {};
@@ -322,6 +332,11 @@ app.post('/api/requests/:folio/pay', async (req, res) => {
 // ¿Ya existe un PIN de administrador?
 app.get('/api/admin/status', (req, res) => {
   res.json({ hasPin: Boolean(getAdminPinHash()), mpConfigured: Boolean(MP_ACCESS_TOKEN) });
+});
+
+// Contador de visitas, solo para el administrador.
+app.get('/api/admin/visits', requireAdmin, (req, res) => {
+  res.json({ visits: Number(getSetting('visits', 0)) });
 });
 
 // Crear el PIN la primera vez (solo si aún no existe).
